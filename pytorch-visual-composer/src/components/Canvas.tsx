@@ -1,21 +1,25 @@
 // components/Canvas.tsx
 import React, { useCallback } from 'react';
 import ReactFlow, {
-    ReactFlowProvider,
     addEdge,
+    MiniMap,
+    Controls,
+    Background,
     applyNodeChanges,
     applyEdgeChanges,
-    Background,
-    Controls,
-    Connection,
-    Edge,
     Node,
+    Edge,
+    ReactFlowProvider,
+    OnConnect,
+    Position,
     NodeChange,
     EdgeChange,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
 import CustomNode from './CustomNode';
+import { useGraph } from '../provider/GraphProvider';
+import { layerToClassMap } from '../utils/codeGenerator';
 
 const nodeTypes = {
     // Basic I/O and structural nodes
@@ -119,24 +123,17 @@ const nodeTypes = {
     ChannelShuffle: CustomNode, // Often implemented manually, but can be included as a conceptual node
     Softmax2d: CustomNode,
     // ... Add more if required
+
+    MLP: CustomNode,
+    CAT: CustomNode,
+    Sequential: CustomNode,
 };
 
+const Canvas: React.FC = () => {
+    const { nodes, setNodes, edges, setEdges, setSelectedNode } = useGraph();
 
-interface CanvasProps {
-    nodes: Node[];
-    edges: Edge[];
-    setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
-    setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
-    setSelectedNode: React.Dispatch<React.SetStateAction<Node | null>>;
-}
+    const onConnect: OnConnect = (params) => setEdges((eds) => addEdge(params, eds));
 
-const Canvas: React.FC<CanvasProps> = ({
-    nodes,
-    edges,
-    setNodes,
-    setEdges,
-    setSelectedNode,
-}) => {
     const onNodesChange = useCallback(
         (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
         [setNodes]
@@ -147,29 +144,39 @@ const Canvas: React.FC<CanvasProps> = ({
         [setEdges]
     );
 
-    const onConnect = useCallback(
-        (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-        [setEdges]
-    );
+    const onNodeClick = (event: React.MouseEvent, node: Node) => {
+        setSelectedNode(node);
+    };
 
     const onDrop = useCallback(
         (event: React.DragEvent) => {
             event.preventDefault();
 
-            const nodeType = event.dataTransfer.getData('application/reactflow');
+            const reactFlowBounds = (event.target as HTMLDivElement).getBoundingClientRect();
+            const type = event.dataTransfer.getData('application/reactflow');
+            if (!type) return;
+
+            // Check if the dropped element is valid
+            const validTypes = Object.keys(nodeTypes);
+            if (!validTypes.includes(type) && !layerToClassMap[type]) {
+                return;
+            }
+
+            // Get the position where the node was dropped
             const position = {
-                x: event.clientX - event.currentTarget.getBoundingClientRect().left,
-                y: event.clientY - event.currentTarget.getBoundingClientRect().top,
+                x: event.clientX - reactFlowBounds.left,
+                y: event.clientY - reactFlowBounds.top,
             };
+
+            // Generate a unique ID for the new node
+            const id = getId();
+
+            // Define the new node
             const newNode: Node = {
-                id: getId(),
-                type: nodeType,
+                id,
+                type: 'custom', // Use custom node type
                 position,
-                data: {
-                    label: `${nodeType} Node`,
-                    parameters: {},
-                    configKey: `node_${id}`,
-                },
+                data: { label: type, parameters: {} },
             };
 
             setNodes((nds) => nds.concat(newNode));
@@ -177,38 +184,30 @@ const Canvas: React.FC<CanvasProps> = ({
         [setNodes]
     );
 
-    const onDragOver = (event: React.DragEvent) => {
+    const onDragOver = useCallback((event: React.DragEvent) => {
         event.preventDefault();
         event.dataTransfer.dropEffect = 'move';
-    };
-
-    const onNodeClick = useCallback(
-        (event: React.MouseEvent, node: Node) => {
-            setSelectedNode(node);
-        },
-        [setSelectedNode]
-    );
+    }, []);
 
     return (
-        <ReactFlowProvider>
-            <div className="canvas-wrapper" style={{ flex: 1 }}>
-                <ReactFlow
-                    nodes={nodes}
-                    edges={edges}
-                    onNodesChange={onNodesChange}
-                    onEdgesChange={onEdgesChange}
-                    onConnect={onConnect}
-                    onNodeClick={onNodeClick}
-                    onDrop={onDrop}
-                    onDragOver={onDragOver}
-                    nodeTypes={nodeTypes}
-                    fitView
-                >
-                    <Background />
-                    <Controls />
-                </ReactFlow>
-            </div>
-        </ReactFlowProvider>
+        <div style={{ height: '100%', flexGrow: 1 }}>
+            <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                nodeTypes={nodeTypes}
+                onNodeClick={onNodeClick}
+                onDrop={onDrop}
+                onDragOver={onDragOver}
+                fitView
+            >
+                <MiniMap />
+                <Controls />
+                <Background />
+            </ReactFlow>
+        </div>
     );
 };
 
