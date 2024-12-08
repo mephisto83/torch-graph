@@ -175,7 +175,7 @@ const Sidebar: React.FC = () => {
 
     return (
         <aside style={{ padding: '10px', overflowY: 'auto', width: '300px', borderRight: '1px solid #ccc' }}>
-            <h2>PyTorch Layers</h2>
+            <img src="/logo.png" style={{ maxWidth: 'calc(100% - 2px)' }} />
             {Object.entries(layerCategories).map(([category, layers]) => (
                 <Accordion key={category} disableGutters>
                     <AccordionSummary
@@ -241,8 +241,8 @@ const Sidebar: React.FC = () => {
                 <ClipboardPaster onModelPasted={(model) => {
                     console.log(model);
                     const { valid, errors } = validateConfig(model);
-                    if (valid) { 
-                        saveModuleToLocalStorage(model)                        
+                    if (valid) {
+                        saveModuleToLocalStorage(model)
                     }
                     console.error(errors);
                 }} />

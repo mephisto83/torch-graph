@@ -558,7 +558,11 @@ const generateYAMLConfig = (
     });
 
     // Convert the object to YAML string
-    const yamlStr = yaml.dump(yamlObj, { noRefs: true, indent: 4 });
+    const yamlStr = yaml.dump({
+        model: {
+            config: yamlObj
+        }
+    }, { noRefs: true, indent: 4 });
 
     return yamlStr;
 };
