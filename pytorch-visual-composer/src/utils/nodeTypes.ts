@@ -111,6 +111,7 @@ export function nodeTypes() {
         ModuleList: CustomNode,
         Sequential: CustomNode,
 
-        Math: CustomNode
+        Math: CustomNode,
+        Squeeze: CustomNode
     }
 };

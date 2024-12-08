@@ -49,6 +49,10 @@ export function layerParameters(): { [key: string]: LayerParameter[] } {
             { name: 'comment', type: 'text', default: '' }, // Optional comment
         ],
 
+        "Squeeze": [
+            { name: 'a', type: 'number', default: '0' }
+        ],
+
         // Convolutional
         "Conv1d": [
             { name: 'in_channels', type: 'number', default: 1 },

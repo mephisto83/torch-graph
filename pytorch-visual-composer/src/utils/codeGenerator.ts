@@ -72,7 +72,7 @@ export const generateCode = (all_nodes: Node[], edges: Edge[], modelName: string
         const params = layerParameters[node.type] || [];
         const className = layerToClassMap[node.type];
 
-        if (node.type === 'ConfigNode' || node.type === 'Input' || node.type === 'Output') {
+        if (node.type === 'ConfigNode' || node.type === 'Input' || node.type === 'Output' || node.type === 'Squeeze') {
             // Skip ConfigNodes and IO nodes
             return;
         }
@@ -247,6 +247,12 @@ export const generateCode = (all_nodes: Node[], edges: Edge[], modelName: string
             modelCode += `        ${getNodeName(node)} = ${inputVar}\n`;
             modelCode += `        for layer in self.${nodeName}:\n`;
             modelCode += `            ${getNodeName(node)} = layer(${getNodeName(node)})\n`;
+        } else if (node.type === 'Squeeze') {
+            const predecessors = edges
+                .filter(edge => edge.target === node.id && !edge.targetHandle)
+                .map(edge => getNodeNameFromId(all_nodes, edge.source));
+            const inputVar = predecessors.length > 0 ? predecessors.join(', ') : 'x';
+            modelCode += `        ${getNodeName(node)} = ${inputVar}.squeeze(-1)\n`;
         } else {
             const predecessors = edges
                 .filter(edge => edge.target === node.id && !edge.targetHandle)

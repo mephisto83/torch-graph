@@ -14,6 +14,7 @@ export const defaultLayerToClassMap: { [key: string]: string } = {
     "Cat": "", // Handled as a functional operation
     "ModuleList": "nn.ModuleList",
     "Sequential": "nn.Sequential",
+    "Squeeze": "",
 
     // Input/Output
     "Input": "",    // special handling in forward

@@ -18,5 +18,5 @@ export const defaultLayerCategories: { [category: string]: string[] } = {
     "rapstar": ["MLP"],
     "Math": ["Math"],
     "Config": ["Config"], // Added ConfigNode
-    "Utilities": ["Cat", "Sequential", "ModuleList"], // New category for utility operations
+    "Utilities": ["Cat", "Sequential", "ModuleList", "Squeeze"], // New category for utility operations
 };
