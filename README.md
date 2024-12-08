@@ -260,9 +260,7 @@ Once on the Torch Graph GPT page:
 
 **Example:**
 
-![Torch Graph GPT Input](https://example.com/torch-graph-gpt-input.png)
-
-*Image Placeholder: Replace with actual screenshot if available.*
+![Torch Graph GPT Input](./images/torch_graph_gpt_input.png)
 
 #### **4. Submit for Configuration Generation**
 
@@ -273,9 +271,9 @@ After pasting your code:
 
 **Progress Indicator:**
 
-![Generating Config](https://example.com/generating-config.png)
+![Generating Config](./images/torch_graph_input.png)
+![Generating Config](./images/torch_graph_output.png)
 
-*Image Placeholder: Replace with actual screenshot if available.*
 
 #### **5. Review and Download the Generated Configuration**
 
