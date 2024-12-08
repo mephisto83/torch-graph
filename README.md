@@ -316,10 +316,10 @@ Once the process is complete:
 
 With the configuration file ready:
 
-1. **Import the Configuration:** Use your neural network composer or configuration loader to import the JSON.
+1. **Import the Configuration:** Click the paste button to import the JSON.
 2. **Instantiate the Module:** The configuration will automatically set the parameters for your custom module.
 
-["past image"]("./images/paste_model.png")
+![past image](./images/paste_model.png)
 
 
 
