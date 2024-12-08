@@ -319,23 +319,9 @@ With the configuration file ready:
 1. **Import the Configuration:** Use your neural network composer or configuration loader to import the JSON.
 2. **Instantiate the Module:** The configuration will automatically set the parameters for your custom module.
 
-**Example Integration Code:**
+["past image"]("./images/paste_model.png")
 
-```python
-import yaml
-import torch.nn as nn
-from your_composer import NeuralNetworkComposer
 
-# Load the YAML configuration
-with open('customlinearlayer_defaults.yaml', 'r') as file:
-    config = yaml.safe_load(file)
-
-# Instantiate the Neural Network Composer
-composer = NeuralNetworkComposer(config)
-
-# Add the custom linear layer to your model
-composer.add_layer('CustomLinearLayer')
-```
 
 ### **Best Practices for Using Torch Graph GPT**
 
