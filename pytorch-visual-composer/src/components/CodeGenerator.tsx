@@ -6,10 +6,12 @@ import { useGraph } from '../provider/GraphProvider';
 const CodeGenerator: React.FC = () => {
     const { nodes, edges, modelName, layerToClassMap, layerParameters } = useGraph();
     const [generatedCode, setGeneratedCode] = useState<string>('');
+    const [generatedYamlCode, setGeneratedYamlCode] = useState<string>('');
 
     const handleGenerateCode = () => {
-        const code = generateCode(nodes, edges, modelName, layerToClassMap, layerParameters);
+        const { code, yamlConfig } = generateCode(nodes, edges, modelName, layerToClassMap, layerParameters);
         setGeneratedCode(code);
+        setGeneratedYamlCode(yamlConfig)
     };
 
     const handleDownloadCode = () => {
@@ -39,6 +41,9 @@ const CodeGenerator: React.FC = () => {
                     </button>
                     <pre style={{ background: '#f5f5f5', padding: '10px', overflowX: 'auto' }}>
                         {generatedCode}
+                    </pre>
+                    <pre style={{ background: '#f5f5f5', padding: '10px', overflowX: 'auto' }}>
+                        {generatedYamlCode}
                     </pre>
                 </>
             )}

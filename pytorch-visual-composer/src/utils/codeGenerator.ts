@@ -2,7 +2,7 @@
 import { Node, Edge } from 'reactflow';
 import { LayerParameter, layerParameters } from './layerParameters';
 import { NodeData } from '../types/NodeTypes';
-
+import yaml from 'js-yaml';
 // Define parameter structure for each layer type, same as in Sidebar.
 // For brevity, we reuse the same large dictionary from the previous step.
 // Ensure this is identical to what you use in Sidebar to keep consistency.
@@ -14,7 +14,7 @@ import { NodeData } from '../types/NodeTypes';
 //     configKey?: string;
 // }
 
-export const generateCode = (all_nodes: Node[], edges: Edge[], modelName: string, layerToClassMap: { [key: string]: string }, layerParameters: { [key: string]: LayerParameter[] }): string => {
+export const generateCode = (all_nodes: Node[], edges: Edge[], modelName: string, layerToClassMap: { [key: string]: string }, layerParameters: { [key: string]: LayerParameter[] }): { code: string, yamlConfig: string } => {
     let nodes = all_nodes.filter(node => {
         const containedLayerIds = edges
             .filter(edge => edge.source === node.id && edge.target && edge.targetHandle);
@@ -26,36 +26,96 @@ export const generateCode = (all_nodes: Node[], edges: Edge[], modelName: string
         return acc;
     }, {} as { [key: string]: Node });
 
-    // Build configuration class code
-    let configCode = `class ${modelName}Config:\n`;
-    configCode += '    def __init__(self):\n';
 
-    // Set tunable parameters in config
-    nodes.forEach((node) => {
+    // Extract ConfigNodes and map parameter names to their values
+    const configNodes = all_nodes.filter(node => node.type === 'Config');
+    const configParams: { [paramName: string]: { value: string; dependencies: string[] } } = {};
+
+    // Collect all parameter names
+    const allParamNames = configNodes.map(node => node.data.parameters?.param_name).filter(Boolean) as string[];
+
+    configNodes.forEach(node => {
         const nodeData = node.data as NodeData;
-        const configKey = nodeData.configKey || getNodeNameFromId(all_nodes, node.id);
-        const params = nodeData.parameters || {};
-        for (const [paramName, paramValue] of Object.entries(params)) {
-            // Convert JS boolean to Python boolean
-            let pythonValue = paramValue;
-            if (typeof paramValue === 'boolean') {
-                pythonValue = paramValue ? 'True' : 'False';
-            } else if (typeof paramValue === 'string') {
-                // For strings that represent tuples or lists, ensure they are valid Python syntax
-                // For example: "3,3" should be "(3,3)"
-                // Here, we'll assume the user inputs valid Python syntax
-                pythonValue = paramValue;
-            }
-            // For numbers, no change
-            configCode += `        self.${configKey}_${paramName} = ${pythonValue}\n`;
+        const paramName = nodeData.parameters?.param_name;
+        const paramValue = nodeData.parameters?.value || '';
+
+        if (paramName) {
+            const dependencies = parseDependencies(paramValue, allParamNames);
+            configParams[paramName] = { value: paramValue, dependencies };
         }
     });
 
-    // Dependent properties placeholder
-    configCode += '\n        # Dependent properties\n';
-    configCode += '        self.calculate_dependent_properties()\n\n';
-    configCode += '    def calculate_dependent_properties(self):\n';
-    configCode += '        pass\n\n';
+    // Separate parameters into independent and dependent
+    const independentParams: string[] = [];
+    const dependentParams: string[] = [];
+
+    Object.entries(configParams).forEach(([param, details]) => {
+        if (details.dependencies.length === 0) {
+            independentParams.push(param);
+        } else {
+            dependentParams.push(param);
+        }
+    });
+
+    // Prepare dependency edges for dependent parameters
+    const dependencyEdges: { from: string; to: string }[] = [];
+    dependentParams.forEach(param => {
+        configParams[param].dependencies.forEach(dep => {
+            if (configParams[dep]) { // Only consider dependencies that are defined as ConfigNodes
+                dependencyEdges.push({ from: param, to: dep });
+            }
+        });
+    });
+
+    // Perform topological sort on all parameters
+    let sortedParams: string[];
+    try {
+        sortedParams = topologicalSort(allParamNames, dependencyEdges);
+    } catch (error: any) {
+        throw new Error(`Error generating ModelConfig: ${error.message}`);
+    }
+
+    // Build configuration class code
+    let configCode = `class ${modelName}Config:\n`;
+    configCode += `    def __init__(self`;
+
+    // Add independent parameters as constructor arguments with default values
+    independentParams.forEach(param => {
+        const paramValue = configParams[param].value;
+        let defaultValue = paramValue;
+
+        // Convert JS boolean to Python boolean
+        if (typeof paramValue === 'boolean') {
+            defaultValue = paramValue ? 'True' : 'False';
+        } else if (typeof paramValue === 'string') {
+            // Handle numeric, tuple/list, activation functions, and string literals
+            if (!isNaN(Number(paramValue))) {
+                // Numeric value, no change needed
+            } else if (/^[\[\(].*[\)\]]$/.test(paramValue)) {
+                // Tuple or list, no change needed
+            } else if (/^nn\.\w+\(\)$/.test(paramValue)) {
+                // Activation functions or other nn.Module instances, no change needed
+            } else {
+                // String literal, add quotes
+                defaultValue = `"${paramValue}"`;
+            }
+        }
+
+        configCode += `, ${param}=${defaultValue}`;
+    });
+
+    configCode += `):\n`;
+
+    // Assign independent parameters
+    independentParams.forEach(param => {
+        configCode += `        self.${param} = ${param}\n`;
+    });
+
+    // Assign dependent parameters in sorted order
+    dependentParams.forEach(param => {
+        const paramValue = configParams[param].value;
+        configCode += `        self.${param} = ${paramValue}\n`;
+    });
 
     // Build the model class code
     let modelCode = `class ${modelName}(nn.Module):\n`;
@@ -285,12 +345,15 @@ export const generateCode = (all_nodes: Node[], edges: Edge[], modelName: string
     const outputNodeId = executionOrder.find(id => nodeMap[id].type === 'Output') || executionOrder[executionOrder.length - 1];
     modelCode += `        return ${getNodeNameFromId(all_nodes, outputNodeId)}\n`;
 
+    // After generating Python classes, generate YAML configuration
+    const yamlConfig = generateYAMLConfig(configParams, independentParams, modelName);
+
     // Combine the codes
     let code = 'import torch\nimport torch.nn as nn\n\n';
     code += configCode + '\n';
     code += modelCode;
 
-    return code;
+    return { code, yamlConfig };
 };
 
 function buildCodeSection(
@@ -389,3 +452,113 @@ function findConfig(all_nodes: Node[], node: Node, edges: Edge[], l_param: { nam
     }
     return null;
 }
+
+/**
+ * Performs topological sort on the dependency graph.
+ * @param nodes Array of parameter names.
+ * @param edges Array of dependency edges (from, to).
+ * @returns An array of parameter names sorted in dependency order.
+ * @throws Error if a circular dependency is detected.
+ */
+const topologicalSort = (nodes: string[], edges: { from: string; to: string }[]): string[] => {
+    const adjList: { [key: string]: string[] } = {};
+    nodes.forEach(node => {
+        adjList[node] = [];
+    });
+    edges.forEach(edge => {
+        adjList[edge.from].push(edge.to);
+    });
+
+    const visited: { [key: string]: boolean } = {};
+    const tempMarks: { [key: string]: boolean } = {};
+    const result: string[] = [];
+
+    const visit = (node: string) => {
+        if (tempMarks[node]) {
+            throw new Error(`Circular dependency detected involving parameter "${node}".`);
+        }
+        if (!visited[node]) {
+            tempMarks[node] = true;
+            adjList[node].forEach(dep => visit(dep));
+            tempMarks[node] = false;
+            visited[node] = true;
+            result.push(node);
+        }
+    };
+
+    nodes.forEach(node => {
+        if (!visited[node]) {
+            visit(node);
+        }
+    });
+
+    return result.reverse(); // Return in correct order
+};
+
+/**
+ * Parses the parameter value to find dependencies on other config parameters.
+ * @param value The parameter value as a string.
+ * @returns An array of param_names that this parameter depends on.
+ */
+const parseDependencies = (value: string, allParams: string[]): string[] => {
+    const dependencies: string[] = [];
+    allParams.forEach((param) => {
+        // Create a regex pattern with word boundaries to match exact parameter names
+        const regex = new RegExp(`\\b${param}\\b`, 'g');
+        if (regex.test(value)) {
+            dependencies.push(param);
+        }
+    });
+    return dependencies;
+};
+
+/**
+ * Generates a YAML configuration string based on independent parameters.
+ * @param configParams All configuration parameters with their values and dependencies.
+ * @param independentParams List of independent parameter names.
+ * @param modelName Name of the model to customize the YAML filename if needed.
+ * @returns A string representing the YAML configuration.
+ */
+const generateYAMLConfig = (
+    configParams: { [paramName: string]: { value: string; dependencies: string[] } },
+    independentParams: string[],
+    modelName: string
+): string => {
+    const yamlObj: { [key: string]: any } = {};
+
+    independentParams.forEach(param => {
+        let value: any = configParams[param].value;
+
+        // Convert certain strings to proper YAML representations
+        if (/^nn\.\w+\(\)$/.test(value)) {
+            // Activation functions or other nn.Module instances
+            value = value; // Keep as is; user will need to handle this in Python
+        } else if (!isNaN(Number(value))) {
+            // Numeric values remain as numbers
+            value = Number(value);
+        } else if (/^[\[\(].*[\)\]]$/.test(value)) {
+            // Tuples or lists
+            // Evaluate the string to convert it to an actual array or tuple
+            // Caution: Using eval can be dangerous; ensure input is sanitized
+            try {
+                value = eval(value);
+            } catch (e) {
+                // If eval fails, keep the string as is
+                value = value;
+            }
+        } else if (typeof value === 'boolean') {
+            // Boolean values
+            value = value;
+        } else {
+            // Treat as string literals
+            value = value;
+        }
+
+        yamlObj[param] = value;
+    });
+
+    // Convert the object to YAML string
+    const yamlStr = yaml.dump(yamlObj, { noRefs: true, indent: 4 });
+
+    return yamlStr;
+};
