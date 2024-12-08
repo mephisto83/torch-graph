@@ -266,7 +266,7 @@ Once on the Torch Graph GPT page:
 
 After pasting your code:
 
-1. **Initiate the Process:** Click on the "Generate Config" button or a similarly labeled action to start the configuration generation process.
+1. **Initiate the Process:** Click on the "Submit" button or a similarly labeled action to start the configuration generation process.
 2. **Wait for Processing:** The AI will analyze your module code, identify key components, and generate a corresponding configuration.
 
 **Progress Indicator:**
@@ -279,25 +279,44 @@ After pasting your code:
 
 Once the process is complete:
 
-1. **View the Configuration:** The generated YAML or JSON configuration will be displayed on the screen.
+1. **View the Configuration:** The generated JSON configuration will be displayed on the screen.
 2. **Verify Accuracy:** Ensure that all parameters, such as `in_features`, `out_features`, and `activation`, are correctly captured.
-3. **Download the Config:** Click on the "Download" button to save the configuration file to your local machine.
+3. **Download the Config:** Click on the "Copy" button to save the configuration file to your clipboard.
 
 **Example Generated YAML Configuration:**
 
-```yaml
-CustomLinearLayer:
-  in_features: 128
-  out_features: 64
-  bias: True
-  activation: nn.ReLU()
+```json
+{
+    "name": "MLP",
+    "nodeTypes": {
+        "MLP": "CustomNode"
+    },
+    "layerParameters": {
+        "MLP": [
+            { "name": "input_dim", "type": "number", "default": 64 },
+            { "name": "hidden_dim", "type": "number", "default": 128 },
+            { "name": "output_dim", "type": "number", "default": 1 },
+            { "name": "num_layers", "type": "number", "default": 3 },
+            { "name": "activation", "type": "string", "default": "ReLU" },
+            { "name": "sigmoid_output", "type": "boolean", "default": false },
+            { "name": "use_residual", "type": "boolean", "default": false }
+        ]
+    },
+    "layerCategories": {
+        "custom": "MLP"
+    },
+    "layerToClassMap": {
+        "MLP": "python.MLP"
+    }
+}
+
 ```
 
 #### **6. Integrate the Configuration into Your Workflow**
 
 With the configuration file ready:
 
-1. **Import the Configuration:** Use your neural network composer or configuration loader to import the YAML file.
+1. **Import the Configuration:** Use your neural network composer or configuration loader to import the JSON.
 2. **Instantiate the Module:** The configuration will automatically set the parameters for your custom module.
 
 **Example Integration Code:**
