@@ -4,11 +4,11 @@ import { generateCode } from '../utils/codeGenerator';
 import { useGraph } from '../provider/GraphProvider';
 
 const CodeGenerator: React.FC = () => {
-    const { nodes, edges, modelName } = useGraph();
+    const { nodes, edges, modelName, layerToClassMap, layerParameters } = useGraph();
     const [generatedCode, setGeneratedCode] = useState<string>('');
 
     const handleGenerateCode = () => {
-        const code = generateCode(nodes, edges, modelName);
+        const code = generateCode(nodes, edges, modelName, layerToClassMap, layerParameters);
         setGeneratedCode(code);
     };
 
@@ -27,7 +27,7 @@ const CodeGenerator: React.FC = () => {
     };
 
     return (
-        <div style={{ padding: '10px', width: '300px', borderLeft: '1px solid #ccc', overflowY: 'auto' }}>
+        <div style={{ padding: '10px', minWidth: '400px', width: `25vw`, borderLeft: '1px solid #ccc', overflowY: 'auto' }}>
             <h2>Code Generator</h2>
             <button onClick={handleGenerateCode} style={{ marginBottom: '10px' }}>
                 Generate Code

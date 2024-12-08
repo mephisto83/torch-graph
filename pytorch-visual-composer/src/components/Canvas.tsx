@@ -1,5 +1,5 @@
 // components/Canvas.tsx
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import ReactFlow, {
     addEdge,
     MiniMap,
@@ -16,123 +16,16 @@ import ReactFlow, {
     EdgeChange,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-
-import CustomNode from './CustomNode';
 import { useGraph } from '../provider/GraphProvider';
-import { layerToClassMap } from '../utils/codeGenerator';
 
-const nodeTypes = {
-    // Basic I/O and structural nodes
-    Input: CustomNode,
-    Output: CustomNode,
-
-    // Convolutional layers
-    Conv1d: CustomNode,
-    Conv2d: CustomNode,
-    Conv3d: CustomNode,
-    ConvTranspose1d: CustomNode,
-    ConvTranspose2d: CustomNode,
-    ConvTranspose3d: CustomNode,
-
-    // Linear and embedding layers
-    Linear: CustomNode,
-    Bilinear: CustomNode,
-    Embedding: CustomNode,
-    EmbeddingBag: CustomNode,
-
-    // Recurrent layers
-    RNN: CustomNode,
-    LSTM: CustomNode,
-    GRU: CustomNode,
-
-    // Normalization layers
-    BatchNorm1d: CustomNode,
-    BatchNorm2d: CustomNode,
-    BatchNorm3d: CustomNode,
-    GroupNorm: CustomNode,
-    LayerNorm: CustomNode,
-    InstanceNorm1d: CustomNode,
-    InstanceNorm2d: CustomNode,
-    InstanceNorm3d: CustomNode,
-
-    // Activation layers
-    ReLU: CustomNode,
-    LeakyReLU: CustomNode,
-    ELU: CustomNode,
-    SELU: CustomNode,
-    Sigmoid: CustomNode,
-    Tanh: CustomNode,
-    Softmax: CustomNode,
-    LogSoftmax: CustomNode,
-    Hardtanh: CustomNode,
-    Hardshrink: CustomNode,
-    Hardsigmoid: CustomNode,
-    Hardswish: CustomNode,
-    Mish: CustomNode,
-    GELU: CustomNode,
-
-    // Pooling layers
-    MaxPool1d: CustomNode,
-    MaxPool2d: CustomNode,
-    MaxPool3d: CustomNode,
-    AvgPool1d: CustomNode,
-    AvgPool2d: CustomNode,
-    AvgPool3d: CustomNode,
-    AdaptiveMaxPool1d: CustomNode,
-    AdaptiveMaxPool2d: CustomNode,
-    AdaptiveMaxPool3d: CustomNode,
-    AdaptiveAvgPool1d: CustomNode,
-    AdaptiveAvgPool2d: CustomNode,
-    AdaptiveAvgPool3d: CustomNode,
-
-    // Dropout and other regularization layers
-    Dropout: CustomNode,
-    Dropout2d: CustomNode,
-    Dropout3d: CustomNode,
-    AlphaDropout: CustomNode,
-
-    // Padding layers
-    ReflectionPad1d: CustomNode,
-    ReflectionPad2d: CustomNode,
-    ReflectionPad3d: CustomNode,
-    ReplicationPad1d: CustomNode,
-    ReplicationPad2d: CustomNode,
-    ReplicationPad3d: CustomNode,
-    ZeroPad2d: CustomNode,
-
-    // Upsampling and resizing layers
-    Upsample: CustomNode,
-    UpsamplingNearest2d: CustomNode,
-    UpsamplingBilinear2d: CustomNode,
-
-    // Transformer and attention layers
-    Transformer: CustomNode,
-    TransformerEncoder: CustomNode,
-    TransformerDecoder: CustomNode,
-    TransformerEncoderLayer: CustomNode,
-    TransformerDecoderLayer: CustomNode,
-    MultiheadAttention: CustomNode,
-
-    // Utility layers for reshaping and folding
-    Flatten: CustomNode,
-    Unfold: CustomNode,
-    Fold: CustomNode,
-
-    // Other miscellaneous layers
-    PixelShuffle: CustomNode,
-    ChannelShuffle: CustomNode, // Often implemented manually, but can be included as a conceptual node
-    Softmax2d: CustomNode,
-    // ... Add more if required
-
-    MLP: CustomNode,
-    CAT: CustomNode,
-    Sequential: CustomNode,
-};
 
 const Canvas: React.FC = () => {
-    const { nodes, setNodes, edges, setEdges, setSelectedNode } = useGraph();
+    const { nodes, setNodes, edges, setEdges, setSelectedNode, setSelectedEdge, selectedEdge, selectedNode, nodeTypes, layerToClassMap, layerParameters } = useGraph();
+    const divRef = useRef(null);
+    const onConnect: OnConnect = (params) => {
 
-    const onConnect: OnConnect = (params) => setEdges((eds) => addEdge(params, eds));
+        setEdges((eds) => addEdge(params, eds))
+    };
 
     const onNodesChange = useCallback(
         (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -140,13 +33,19 @@ const Canvas: React.FC = () => {
     );
 
     const onEdgesChange = useCallback(
-        (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
+        (changes: EdgeChange[]) => {
+            setEdges((eds) => applyEdgeChanges(changes, eds))
+        },
         [setEdges]
     );
 
     const onNodeClick = (event: React.MouseEvent, node: Node) => {
         setSelectedNode(node);
     };
+
+    const onEdgeClick = (event: React.MouseEvent, edge: Edge) => {
+        setSelectedEdge(edge);
+    }
 
     const onDrop = useCallback(
         (event: React.DragEvent) => {
@@ -174,14 +73,18 @@ const Canvas: React.FC = () => {
             // Define the new node
             const newNode: Node = {
                 id,
-                type: 'custom', // Use custom node type
+                type: type === 'ConfigNode' ? 'Config' : (type || 'custom'), // Use custom node type
                 position,
-                data: { label: type, parameters: {} },
+                data: {
+                    label: type,
+                    parameters: {},
+                    parameterNames: layerParameters[type]
+                },
             };
 
             setNodes((nds) => nds.concat(newNode));
         },
-        [setNodes]
+        [setNodes, nodeTypes, layerToClassMap, layerParameters]
     );
 
     const onDragOver = useCallback((event: React.DragEvent) => {
@@ -189,8 +92,47 @@ const Canvas: React.FC = () => {
         event.dataTransfer.dropEffect = 'move';
     }, []);
 
+    // Handle keydown events for deleting nodes
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            // Check if the Delete key is pressed
+            if (event.key === 'Delete' || event.key === 'Backspace') {
+                if (selectedEdge) {
+                    // Remove all edges connected to the selected node
+                    setEdges((eds) =>
+                        eds.filter(
+                            (edge) => edge.id !== selectedEdge.id
+                        )
+                    );
+                    setSelectedEdge(null);
+                }
+                else if (selectedNode) {
+                    // Remove the selected node
+                    setNodes((nds) => nds.filter((node) => node.id !== selectedNode.id));
+
+                    // Remove all edges connected to the selected node
+                    setEdges((eds) =>
+                        eds.filter(
+                            (edge) => edge.source !== selectedNode.id && edge.target !== selectedNode.id
+                        )
+                    );
+
+                    // Clear the selected node
+                    setSelectedNode(null);
+                }
+            }
+        };
+
+        // Attach the event listener
+        (divRef?.current as any)?.addEventListener('keydown', handleKeyDown);
+
+        // Clean up the event listener on unmount
+        return () => {
+            (divRef?.current as any)?.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [selectedNode, setNodes, setEdges, setSelectedNode]);
     return (
-        <div style={{ height: '100%', flexGrow: 1 }}>
+        <div style={{ height: '100%', flexGrow: 1 }} ref={divRef}>
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -199,6 +141,7 @@ const Canvas: React.FC = () => {
                 onConnect={onConnect}
                 nodeTypes={nodeTypes}
                 onNodeClick={onNodeClick}
+                onEdgeClick={onEdgeClick}
                 onDrop={onDrop}
                 onDragOver={onDragOver}
                 fitView
@@ -212,7 +155,26 @@ const Canvas: React.FC = () => {
 };
 
 // Utility function to generate unique IDs
-let id = 0;
-const getId = () => `node_${id++}`;
+const getId = () => `node_${Date.now()}`;
 
 export default Canvas;
+function uuidv4(): string {
+    // Helper function to generate a random number between 0 and 255
+    const getRandomByte = (): number => Math.floor(Math.random() * 256);
+
+    // Create an array of 16 random bytes
+    const randomBytes = Array.from({ length: 16 }, getRandomByte);
+
+    // Set the version to 4 -> (0100xxxx in bits)
+    randomBytes[6] = (randomBytes[6] & 0x0f) | 0x40;
+
+    // Set the variant to RFC 4122 -> (10xxxxxx in bits)
+    randomBytes[8] = (randomBytes[8] & 0x3f) | 0x80;
+
+    // Convert random bytes to UUID string format
+    const byteToHex = (byte: number): string => byte.toString(16).padStart(2, '0');
+    const uuid = randomBytes.map(byteToHex).join('');
+
+    // Insert dashes into the UUID string to match the format
+    return `${uuid.substring(0, 8)}-${uuid.substring(8, 12)}-${uuid.substring(12, 16)}-${uuid.substring(16, 20)}-${uuid.substring(20)}`;
+}

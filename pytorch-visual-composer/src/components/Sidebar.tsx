@@ -7,37 +7,10 @@ import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { LayerParameter, layerParameters } from '../utils/layerParameters';
 import { useGraph } from '../provider/GraphProvider';
-
-
-// Categories
-const layerCategories: { [category: string]: string[] } = {
-    "Input/Output": ["Input", "Output"],
-    "Convolutional": ["Conv1d", "Conv2d", "Conv3d", "ConvTranspose1d", "ConvTranspose2d", "ConvTranspose3d"],
-    "Linear & Embedding": ["Linear", "Bilinear", "Embedding", "EmbeddingBag"],
-    "Recurrent": ["RNN", "LSTM", "GRU"],
-    "Normalization": ["BatchNorm1d", "BatchNorm2d", "BatchNorm3d", "GroupNorm", "LayerNorm", "InstanceNorm1d", "InstanceNorm2d", "InstanceNorm3d"],
-    "Activation": ["ReLU", "LeakyReLU", "ELU", "SELU", "Sigmoid", "Tanh", "Softmax", "LogSoftmax", "Hardtanh", "Hardshrink", "Hardsigmoid", "Hardswish", "Mish", "GELU"],
-    "Pooling": ["MaxPool1d", "MaxPool2d", "MaxPool3d", "AvgPool1d", "AvgPool2d", "AvgPool3d", "AdaptiveMaxPool1d", "AdaptiveMaxPool2d", "AdaptiveMaxPool3d", "AdaptiveAvgPool1d", "AdaptiveAvgPool2d", "AdaptiveAvgPool3d"],
-    "Dropout & Regularization": ["Dropout", "Dropout2d", "Dropout3d", "AlphaDropout"],
-    "Padding": ["ReflectionPad1d", "ReflectionPad2d", "ReflectionPad3d", "ReplicationPad1d", "ReplicationPad2d", "ReplicationPad3d", "ZeroPad2d"],
-    "Upsampling & Resizing": ["Upsample", "UpsamplingNearest2d", "UpsamplingBilinear2d"],
-    "Transformers & Attention": ["Transformer", "TransformerEncoder", "TransformerDecoder", "TransformerEncoderLayer", "TransformerDecoderLayer", "MultiheadAttention"],
-    "Reshaping & Folding": ["Flatten", "Unfold", "Fold"],
-    "Other": ["PixelShuffle", "ChannelShuffle", "Softmax2d"],
-    //custom
-    "rapstar": ["MLP"],
-    "Utilities": ["Cat", "Sequential"], // New category for utility operations
-};
-
-interface SidebarProps {
-    nodes: Node[];
-    setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
-    selectedNode: Node | null;
-    setSelectedNode: React.Dispatch<React.SetStateAction<Node | null>>;
-}
-
+import ClipboardPaster from './ClipboardPaster';
+import GraphControls from './GraphControls';
+import { validateConfig } from '../utils/customModules';
 
 const Sidebar: React.FC = () => {
     const {
@@ -49,6 +22,9 @@ const Sidebar: React.FC = () => {
         setModelName,
         saveGraph,
         loadGraph,
+        layerCategories,
+        saveModuleToLocalStorage,
+        layerParameters
     } = useGraph();
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -77,6 +53,8 @@ const Sidebar: React.FC = () => {
             );
             setSelectedNode(updatedNode);
         }
+        event.preventDefault();
+        event.stopPropagation();
     };
 
     const handleParameterChange = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -107,10 +85,14 @@ const Sidebar: React.FC = () => {
             );
             setSelectedNode(updatedNode);
         }
+        event.preventDefault();
+        event.stopPropagation();
     };
 
     const handleModelNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         setModelName(event.target.value);
+        event.preventDefault();
+        event.stopPropagation();
     };
 
     const handleSaveGraph = () => {
@@ -240,6 +222,7 @@ const Sidebar: React.FC = () => {
             {selectedNode && selectedNode.type !== 'edge' && (
                 <div className="node-editor" style={{ marginTop: '20px' }}>
                     <h3>Edit Node</h3>
+                    <h4>{selectedNode.type}</h4>
                     <label>
                         Name:
                         <input
@@ -252,21 +235,17 @@ const Sidebar: React.FC = () => {
                     {renderParameterFields()}
                 </div>
             )}
+            <GraphControls handleSaveGraph={handleSaveGraph} handleFileChange={handleFileChange} />
 
             <div style={{ marginTop: '20px' }}>
-                <button onClick={handleSaveGraph} style={{ marginRight: '10px' }}>
-                    Save Graph
-                </button>
-                <button onClick={handleLoadGraph}>
-                    Load Graph
-                </button>
-                <input
-                    type="file"
-                    accept=".json"
-                    ref={fileInputRef}
-                    style={{ display: 'none' }}
-                    onChange={handleFileChange}
-                />
+                <ClipboardPaster onModelPasted={(model) => {
+                    console.log(model);
+                    const { valid, errors } = validateConfig(model);
+                    if (valid) { 
+                        saveModuleToLocalStorage(model)                        
+                    }
+                    console.error(errors);
+                }} />
             </div>
         </aside>
     );

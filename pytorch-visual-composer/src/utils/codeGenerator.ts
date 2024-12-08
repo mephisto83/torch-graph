@@ -1,151 +1,39 @@
 // utils/codeGenerator.ts
 import { Node, Edge } from 'reactflow';
-import { layerParameters } from './layerParameters';
+import { LayerParameter, layerParameters } from './layerParameters';
+import { NodeData } from '../types/NodeTypes';
 
 // Define parameter structure for each layer type, same as in Sidebar.
 // For brevity, we reuse the same large dictionary from the previous step.
 // Ensure this is identical to what you use in Sidebar to keep consistency.
-interface LayerParameter {
-    name: string;
-    type: 'number' | 'text' | 'boolean' | 'select';
-    default?: any;
-    options?: string[];
-}
 
 
-// Map each node type to its corresponding PyTorch nn class name.
-// If a layer is not in this map, we will just print a comment.
-export const layerToClassMap: { [key: string]: string } = {
-    // Custom
-    "MLP": "python.syllable.MLP",
+// interface NodeData {
+//     label: string;
+//     parameters?: { [key: string]: any };
+//     configKey?: string;
+// }
 
-    // New Utility Layers
-    "Cat": "", // Handled as a functional operation
-    "Sequential": "nn.Sequential",
-
-    // Input/Output
-    "Input": "",    // special handling in forward
-    "Output": "",   // handled in forward (final output)
-
-    // Convolutional
-    "Conv1d": "nn.Conv1d",
-    "Conv2d": "nn.Conv2d",
-    "Conv3d": "nn.Conv3d",
-    "ConvTranspose1d": "nn.ConvTranspose1d",
-    "ConvTranspose2d": "nn.ConvTranspose2d",
-    "ConvTranspose3d": "nn.ConvTranspose3d",
-
-    // Linear & Embedding
-    "Linear": "nn.Linear",
-    "Bilinear": "nn.Bilinear",
-    "Embedding": "nn.Embedding",
-    "EmbeddingBag": "nn.EmbeddingBag",
-
-    // Recurrent
-    "RNN": "nn.RNN",
-    "LSTM": "nn.LSTM",
-    "GRU": "nn.GRU",
-
-    // Normalization
-    "BatchNorm1d": "nn.BatchNorm1d",
-    "BatchNorm2d": "nn.BatchNorm2d",
-    "BatchNorm3d": "nn.BatchNorm3d",
-    "GroupNorm": "nn.GroupNorm",
-    "LayerNorm": "nn.LayerNorm",
-    "InstanceNorm1d": "nn.InstanceNorm1d",
-    "InstanceNorm2d": "nn.InstanceNorm2d",
-    "InstanceNorm3d": "nn.InstanceNorm3d",
-
-    // Activation
-    "ReLU": "nn.ReLU",
-    "LeakyReLU": "nn.LeakyReLU",
-    "ELU": "nn.ELU",
-    "SELU": "nn.SELU",
-    "Sigmoid": "nn.Sigmoid",
-    "Tanh": "nn.Tanh",
-    "Softmax": "nn.Softmax",
-    "LogSoftmax": "nn.LogSoftmax",
-    "Hardtanh": "nn.Hardtanh",
-    "Hardshrink": "nn.Hardshrink",
-    "Hardsigmoid": "nn.Hardsigmoid",
-    "Hardswish": "nn.Hardswish",
-    "Mish": "nn.Mish",
-    "GELU": "nn.GELU",
-
-    // Pooling
-    "MaxPool1d": "nn.MaxPool1d",
-    "MaxPool2d": "nn.MaxPool2d",
-    "MaxPool3d": "nn.MaxPool3d",
-    "AvgPool1d": "nn.AvgPool1d",
-    "AvgPool2d": "nn.AvgPool2d",
-    "AvgPool3d": "nn.AvgPool3d",
-    "AdaptiveMaxPool1d": "nn.AdaptiveMaxPool1d",
-    "AdaptiveMaxPool2d": "nn.AdaptiveMaxPool2d",
-    "AdaptiveMaxPool3d": "nn.AdaptiveMaxPool3d",
-    "AdaptiveAvgPool1d": "nn.AdaptiveAvgPool1d",
-    "AdaptiveAvgPool2d": "nn.AdaptiveAvgPool2d",
-    "AdaptiveAvgPool3d": "nn.AdaptiveAvgPool3d",
-
-    // Dropout & Regularization
-    "Dropout": "nn.Dropout",
-    "Dropout2d": "nn.Dropout2d",
-    "Dropout3d": "nn.Dropout3d",
-    "AlphaDropout": "nn.AlphaDropout",
-
-    // Padding
-    "ReflectionPad1d": "nn.ReflectionPad1d",
-    "ReflectionPad2d": "nn.ReflectionPad2d",
-    "ReflectionPad3d": "nn.ReflectionPad3d",
-    "ReplicationPad1d": "nn.ReplicationPad1d",
-    "ReplicationPad2d": "nn.ReplicationPad2d",
-    "ReplicationPad3d": "nn.ReplicationPad3d",
-    "ZeroPad2d": "nn.ZeroPad2d",
-
-    // Upsampling & Resizing
-    "Upsample": "nn.Upsample",
-    "UpsamplingNearest2d": "nn.UpsamplingNearest2d",
-    "UpsamplingBilinear2d": "nn.UpsamplingBilinear2d",
-
-    // Transformers & Attention
-    "Transformer": "nn.Transformer",
-    "TransformerEncoder": "nn.TransformerEncoder", // partial - may need custom modules
-    "TransformerDecoder": "nn.TransformerDecoder",
-    "TransformerEncoderLayer": "nn.TransformerEncoderLayer",
-    "TransformerDecoderLayer": "nn.TransformerDecoderLayer",
-    "MultiheadAttention": "nn.MultiheadAttention",
-
-    // Reshaping & Folding
-    "Flatten": "nn.Flatten",
-    "Unfold": "nn.Unfold",
-    "Fold": "nn.Fold",
-
-    // Other
-    "PixelShuffle": "nn.PixelShuffle",
-    "ChannelShuffle": "", // Not directly in PyTorch nn, may need custom. We'll leave blank or comment.
-    "Softmax2d": "nn.Softmax2d"
-};
-
-interface NodeData {
-    label: string;
-    parameters?: { [key: string]: any };
-    configKey?: string;
-}
-
-export const generateCode = (nodes: Node[], edges: Edge[], modelName: string): string => {
+export const generateCode = (all_nodes: Node[], edges: Edge[], modelName: string, layerToClassMap: { [key: string]: string }, layerParameters: { [key: string]: LayerParameter[] }): string => {
+    let nodes = all_nodes.filter(node => {
+        const containedLayerIds = edges
+            .filter(edge => edge.source === node.id && edge.target && edge.targetHandle);
+        return !containedLayerIds.length;
+    })
     // Map nodes by their IDs for easy access
-    const nodeMap = nodes.reduce((acc, node) => {
+    const nodeMap = all_nodes.reduce((acc, node) => {
         acc[node.id] = node;
         return acc;
     }, {} as { [key: string]: Node });
 
     // Build configuration class code
-    let configCode = 'class ModelConfig:\n';
+    let configCode = `class ${modelName}Config:\n`;
     configCode += '    def __init__(self):\n';
 
     // Set tunable parameters in config
     nodes.forEach((node) => {
         const nodeData = node.data as NodeData;
-        const configKey = nodeData.configKey || node.id;
+        const configKey = nodeData.configKey || getNodeNameFromId(all_nodes, node.id);
         const params = nodeData.parameters || {};
         for (const [paramName, paramValue] of Object.entries(params)) {
             // Convert JS boolean to Python boolean
@@ -172,7 +60,7 @@ export const generateCode = (nodes: Node[], edges: Edge[], modelName: string): s
     // Build the model class code
     let modelCode = `class ${modelName}(nn.Module):\n`;
     modelCode += '    def __init__(self, config):\n';
-    modelCode += '        super().__init__()\n';
+    modelCode += `        super(${modelName}).__init__()\n`;
     modelCode += '        self.config = config\n';
 
     // Define layers
@@ -180,12 +68,12 @@ export const generateCode = (nodes: Node[], edges: Edge[], modelName: string): s
         if (!node.type) throw 'node.type empty';
         const nodeData = node.data as NodeData;
         const nodeName = sanitizeNodeName(nodeData.label);
-        const configKey = nodeData.configKey || node.id;
+        const configKey = nodeData.configKey || getNodeNameFromId(all_nodes, node.id);
         const params = layerParameters[node.type] || [];
         const className = layerToClassMap[node.type];
 
-        if (node.type === 'Input' || node.type === 'Output' || !className) {
-            // If no class name is defined or it's Input/Output, no layer needed
+        if (node.type === 'ConfigNode' || node.type === 'Input' || node.type === 'Output') {
+            // Skip ConfigNodes and IO nodes
             return;
         }
 
@@ -218,14 +106,72 @@ export const generateCode = (nodes: Node[], edges: Edge[], modelName: string): s
             modelCode += '        )\n';
             return;
         }
+        if (node.type === 'ModuleList') {
+            const modelTypeLayer = edges
+                .filter(edge => edge.target === node.id && edge.targetHandle === 'modelType')
+                .map(edge => edge.source);
 
+            const sortedLayers = modelTypeLayer.map(id => nodeMap[id]).filter(Boolean);
+
+            // Generate the list of layer instances
+            let sequentialLayers = sortedLayers.map(targetNode => {
+                const targetNodeName = buildCodeSection(edges, targetNode, all_nodes, layerToClassMap, nodeData, nodeName);
+                return `${targetNodeName}`;
+            }).join(',\n            ');
+
+            // Include comment if provided
+            const comment = nodeData.parameters?.comment;
+            if (comment) {
+                configCode += `        # ${comment}\n`;
+            }
+            const num_layers = nodeData.parameterNames?.find(v => v.name === 'num_layers');
+
+            modelCode += `        self.${nodeName} = nn.ModuleList([\n`;
+            modelCode += `            ${sequentialLayers}\n`;
+            modelCode += `            for _ in range(${num_layers?.default})\n`;
+            modelCode += '        ])\n';
+            return;
+        }
+        if (node.type === 'Cat') return;
+        if (node.type === 'Math') {
+            let l_params = layerParameters[node.type];
+            let a_l_param = l_params.find(v => v.name === 'a');
+            let b_l_param = l_params.find(v => v.name === 'b') || node.data.parameters['b'];
+            let configa = a_l_param ? findConfig(all_nodes, node, edges, a_l_param) : node.data.parameters['a'];
+            let configb = b_l_param ? findConfig(all_nodes, node, edges, b_l_param) : node.data.parameters['b'];
+            modelCode += `        self.${nodeName} = a * b\n`;
+        }
         // Construct the parameter list for this layer
         let paramLines: string[] = [];
         params.forEach((param) => {
             const paramName = param.name;
             // All parameters stored in config as configKey_paramName
             const configParam = `config.${configKey}_${paramName}`;
-
+            if (node.type) {
+                let l_params = layerParameters[node.type];
+                let l_param = l_params.find(v => v.name === paramName);
+                if (l_param) {
+                    console.log(l_param);
+                    let config = findConfig(all_nodes, node, edges, l_param);
+                    if (config) {
+                        if (config.type === 'Config') {
+                            paramLines.push(`            ${paramName}=config.${config.data.parameters.param_name}`);
+                        }
+                        else {
+                            if (layerToClassMap[config.type as any]) {
+                                paramLines.push(`            ${paramName}=${layerToClassMap[config.type as any]}`);
+                            }
+                        }
+                        return;
+                    }
+                    else if (!node.data.parameters.hasOwnProperty(l_param.name)) {
+                        return;
+                    }
+                    else {
+                        paramLines.push(`            ${paramName}=${node.data.parameters[l_param.name]}`);
+                    }
+                }
+            }
             // For booleans, we already converted in config. For numbers and text, trust input.
             // For select, also trust input.
             paramLines.push(`            ${paramName}=${configParam}`);
@@ -243,9 +189,18 @@ export const generateCode = (nodes: Node[], edges: Edge[], modelName: string): s
     });
 
     // Generate the forward method
-    modelCode += '\n    def forward(self, x):\n';
-
     const executionOrder = determineExecutionOrder(nodes, edges);
+    let inputNames = executionOrder.map((nodeId) => {
+        const node = nodeMap[nodeId];
+        const nodeData = node.data as NodeData;
+        const nodeName = sanitizeNodeName(nodeData.label);
+
+        if (node.type === 'Input') {
+            return nodeName;
+        }
+        return null;
+    }).filter(x => x);
+    modelCode += `\n    def forward(self, ${inputNames.join(', ')}):\n`;
 
     executionOrder.forEach((nodeId) => {
         const node = nodeMap[nodeId];
@@ -254,19 +209,19 @@ export const generateCode = (nodes: Node[], edges: Edge[], modelName: string): s
 
         if (node.type === 'Input') {
             // Input node maps to x
-            modelCode += `        ${node.id} = x\n`;
+            modelCode += `        ${getNodeName(node)} = ${nodeData.label}\n`;
         } else if (node.type === 'Cat') {
             // torch.cat operation
             const predecessors = edges
                 .filter(edge => edge.target === node.id)
-                .map(edge => edge.source);
+                .map(edge => getNodeNameFromId(all_nodes, edge.source));
             const inputVars = predecessors.join(', ');
             const dim = nodeData.parameters?.dim ?? 1;
             const comment = nodeData.parameters?.comment;
             if (comment) {
                 modelCode += `        # ${comment}\n`;
             }
-            modelCode += `        ${node.id} = torch.cat(\n`;
+            modelCode += `        ${getNodeName(node)} = torch.cat(\n`;
             modelCode += `            (${inputVars}), dim=${dim}\n`;
             modelCode += `        )\n`;
             if (nodeData.parameters?.output_shape) {
@@ -276,23 +231,32 @@ export const generateCode = (nodes: Node[], edges: Edge[], modelName: string): s
             // Sequential layer execution
             const predecessors = edges
                 .filter(edge => edge.target === node.id)
-                .map(edge => edge.source);
+                .map(edge => getNodeNameFromId(all_nodes, edge.source));
             const inputVar = predecessors.length > 0 ? predecessors.join(', ') : 'x';
             const comment = nodeData.parameters?.comment;
             if (comment) {
                 modelCode += `        # ${comment}\n`;
             }
-            modelCode += `        ${node.id} = self.${nodeName}(${inputVar})\n`;
+            modelCode += `        ${getNodeName(node)} = self.${nodeName}(${inputVar})\n`;
+        } else if (node.type === 'ModuleList') {
+            // Sequential layer execution
+            const predecessors = edges
+                .filter(edge => edge.target === node.id && !edge.targetHandle)
+                .map(edge => getNodeNameFromId(all_nodes, edge.source));
+            const inputVar = predecessors.length > 0 ? predecessors.join(', ') : 'x';
+            modelCode += `        ${getNodeName(node)} = ${inputVar}\n`;
+            modelCode += `        for layer in self.${nodeName}:\n`;
+            modelCode += `            ${getNodeName(node)} = layer(${getNodeName(node)})\n`;
         } else {
             const predecessors = edges
-                .filter(edge => edge.target === node.id)
-                .map(edge => edge.source);
+                .filter(edge => edge.target === node.id && !edge.targetHandle)
+                .map(edge => getNodeNameFromId(all_nodes, edge.source));
 
             const inputVars = predecessors.length > 0 ? predecessors.join(', ') : 'x';
 
             if (node.type === 'Output') {
                 // If Output node, just assume it takes one input
-                modelCode += `        ${node.id} = ${inputVars}\n`;
+                modelCode += `        ${getNodeName(node)} = ${inputVars}\n`;
             } else {
                 if (!node.type) throw 'node.type empty';
                 // Call the layer defined above
@@ -301,11 +265,11 @@ export const generateCode = (nodes: Node[], edges: Edge[], modelName: string): s
                     if (comment) {
                         modelCode += `        # ${comment}\n`;
                     }
-                    modelCode += `        ${node.id} = self.${nodeName}(${inputVars})\n`;
+                    modelCode += `        ${getNodeName(node)} = self.${nodeName}(${inputVars})\n`;
                 } else {
                     // Unrecognized layer - just pass input forward
                     modelCode += `        # WARNING: No class mapped for ${node.type}, passing input forward\n`;
-                    modelCode += `        ${node.id} = ${inputVars}\n`;
+                    modelCode += `        ${getNodeName(node)} = ${inputVars}\n`;
                 }
             }
         }
@@ -313,7 +277,7 @@ export const generateCode = (nodes: Node[], edges: Edge[], modelName: string): s
 
     // Determine the final output node. Prefer the node marked as 'Output'.
     const outputNodeId = executionOrder.find(id => nodeMap[id].type === 'Output') || executionOrder[executionOrder.length - 1];
-    modelCode += `        return ${outputNodeId}\n`;
+    modelCode += `        return ${getNodeNameFromId(all_nodes, outputNodeId)}\n`;
 
     // Combine the codes
     let code = 'import torch\nimport torch.nn as nn\n\n';
@@ -323,6 +287,53 @@ export const generateCode = (nodes: Node[], edges: Edge[], modelName: string): s
     return code;
 };
 
+function buildCodeSection(
+    edges: Edge[],
+    node: Node,
+    all_nodes: Node[],
+    layerToClassMap: { [key: string]: string; },
+    nodeData: NodeData,
+    nodeName: string) {
+    let modelCode = '';
+    const predecessors = edges
+        .filter(edge => edge.target === node.id)
+        .map(edge => getNodeNameFromId(all_nodes, edge.source));
+
+    if (!node.type) throw 'node.type empty';
+    // Call the layer defined above
+    if (layerToClassMap[node.type]) {
+        //predecessors.length > 0 ? predecessors.join(', ') : 'x';
+        const inputVars = (node.data as NodeData).parameterNames?.map((param) => {
+            let config = findConfig(all_nodes, node, edges, param);
+            if (config) {
+                if (config.type === 'Config') {
+                    return `${param.name}=config.${config.data.parameters.param_name}`;
+                }
+                else {
+                    if (layerToClassMap[config.type as any]) {
+                        return `${param.name}=${layerToClassMap[config.type as any]}`;
+                    }
+                }
+                return;
+            }
+            return `${param.name}=${param.default}`;
+        }).join();
+        modelCode += `${node.type}(${inputVars})\n`;
+    }
+
+    return modelCode;
+}
+
+function getNodeName(node: Node): string {
+    const nodeData = node.data as NodeData;
+    const nodeName = sanitizeNodeName(nodeData.label);
+    return `n_${nodeName}`;
+}
+function getNodeNameFromId(nodes: Node[], id: any) {
+    let node = nodes.find(v => v.id === id);
+    if (!node) throw 'node not found';
+    return getNodeName(node);
+}
 // Utility function to determine execution order
 const determineExecutionOrder = (nodes: Node[], edges: Edge[]): string[] => {
     // Build adjacency list
@@ -363,3 +374,12 @@ const sanitizeNodeName = (name: string): string => {
     // Replace spaces and special characters with underscores
     return name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
 };
+
+function findConfig(all_nodes: Node[], node: Node, edges: Edge[], l_param: { name: string }): Node | undefined | null {
+    let edge = edges.find(v => v.target === node.id && v.targetHandle === l_param.name);
+    if (edge?.source) {
+        let configNode = all_nodes.find(v => v.id === edge?.source);
+        return configNode;
+    }
+    return null;
+}
