@@ -61,6 +61,7 @@ const CustomNode: React.FC<NodeProps<CustomNodeData>> = ({ id, data }) => {
                                 <TextField
                                     variant="standard"
                                     value={paramValue}
+                                    disabled={paramValue === param.default}
                                     size="small"
                                 />
                             </div>

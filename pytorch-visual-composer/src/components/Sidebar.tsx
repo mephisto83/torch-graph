@@ -11,6 +11,7 @@ import { useGraph } from '../provider/GraphProvider';
 import ClipboardPaster from './ClipboardPaster';
 import GraphControls from './GraphControls';
 import { validateConfig } from '../utils/customModules';
+import { Box, Checkbox, FormControlLabel, TextField } from '@mui/material';
 
 const Sidebar: React.FC = () => {
     const {
@@ -125,16 +126,18 @@ const Sidebar: React.FC = () => {
                     const currentValue = selectedNode.data.parameters?.[param.name] ?? param.default;
                     if (param.type === 'boolean') {
                         return (
-                            <label key={param.name} style={{ display: 'block', marginTop: '10px' }}>
-                                {param.name}:
-                                <input
-                                    type="checkbox"
-                                    name={param.name}
-                                    checked={!!currentValue}
-                                    onChange={handleParameterChange}
-                                    style={{ marginLeft: '5px' }}
+                            <Box sx={{ marginTop: '10px' }} key={param.name}>
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox
+                                            name={param.name}
+                                            checked={!!currentValue}
+                                            onChange={handleParameterChange}
+                                        />
+                                    }
+                                    label={param.name}
                                 />
-                            </label>
+                            </Box>
                         );
                     } else if (param.type === 'select' && param.options) {
                         return (
@@ -144,7 +147,7 @@ const Sidebar: React.FC = () => {
                                     name={param.name}
                                     value={currentValue}
                                     onChange={handleParameterChange}
-                                    style={{ marginLeft: '5px' }}
+                                    style={{ marginLeft: '5px', maxWidth: '90%' }}
                                 >
                                     {param.options.map((opt) => (
                                         <option key={opt} value={opt}>{opt}</option>
@@ -157,13 +160,19 @@ const Sidebar: React.FC = () => {
                         const inputType = param.type === 'number' ? 'number' : 'text';
                         return (
                             <label key={param.name} style={{ display: 'block', marginTop: '10px' }}>
-                                {param.name}:
-                                <input
+
+                                <TextField
                                     type={inputType}
+                                    variant="outlined"
+                                    size="small"
+                                    label={param.name}
                                     name={param.name}
                                     value={currentValue}
-                                    onChange={handleParameterChange}
-                                    style={{ marginLeft: '5px', width: '150px' }}
+                                    fullWidth
+                                    onChange={(e: any) => {
+                                        handleParameterChange(e)
+                                    }}
+                                    style={{ marginLeft: '5px', maxWidth: '90%' }}
                                 />
                             </label>
                         );
@@ -209,32 +218,35 @@ const Sidebar: React.FC = () => {
                 </Accordion>
             ))}
 
-            <div style={{ marginTop: '20px' }}>
-                <h3>Model Name</h3>
-                <input
-                    type="text"
-                    value={modelName}
-                    onChange={handleModelNameChange}
-                    style={{ width: '100%', padding: '5px' }}
-                />
-            </div>
+            <Box sx={{ textAlign: 'left', mt: 1, backgroundColor: 'white', padding: 1, borderRadius: 1 }}>
+                <div style={{ marginTop: '20px' }}>
+                    <TextField
+                        label={'Model Name'}
+                        type="text"
+                        value={modelName}
+                        onChange={handleModelNameChange}
+                        style={{ width: '100%', padding: '5px' }}
+                    />
+                </div>
 
-            {selectedNode && selectedNode.type !== 'edge' && (
-                <div className="node-editor" style={{ marginTop: '20px' }}>
-                    <h3>Edit Node</h3>
-                    <h4>{selectedNode.type}</h4>
-                    <label>
-                        Name:
-                        <input
+                {selectedNode && selectedNode.type !== 'edge' && (
+                    <div className="node-editor" style={{ flex: 1, marginTop: '20px' }}>
+                        <h3>Edit Node</h3>
+                        <h4>{selectedNode.type}</h4>
+                        <TextField
+                            label={'Name'}
+                            variant="outlined"
+                            size="small"
                             type="text"
+                            fullWidth
                             value={selectedNode.data.label}
                             onChange={handleNameChange}
-                            style={{ marginLeft: '5px', width: '150px' }}
+                            style={{ marginLeft: '5px' }}
                         />
-                    </label>
-                    {renderParameterFields()}
-                </div>
-            )}
+                        {renderParameterFields()}
+                    </div>
+                )}
+            </Box>
             <GraphControls handleSaveGraph={handleSaveGraph} handleFileChange={handleFileChange} />
 
             <div style={{ marginTop: '20px' }}>
