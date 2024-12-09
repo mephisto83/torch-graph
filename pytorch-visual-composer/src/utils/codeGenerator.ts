@@ -93,7 +93,7 @@ export const generateCode = (all_nodes: Node[], edges: Edge[], modelName: string
                 // Numeric value, no change needed
             } else if (/^[\[\(].*[\)\]]$/.test(paramValue)) {
                 // Tuple or list, no change needed
-            } else if (/^nn\.\w+\(\)$/.test(paramValue)) {
+            } else if (/nn\.\w+$/.test(paramValue)) {
                 // Activation functions or other nn.Module instances, no change needed
             } else {
                 // String literal, add quotes
